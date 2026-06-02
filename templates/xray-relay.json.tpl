@@ -5,10 +5,11 @@
     {
       "protocol": "freedom",
       "tag": "to-cdn",
-      "settings": { "domainStrategy": "UseIP" }
+      "settings": { "domainStrategy": "UseIPv4" }
     }
   ],
   "dns": {
-    "servers": [ "1.1.1.1", "8.8.8.8" ]
+    "servers": [ "1.1.1.1", "8.8.8.8" ],
+    "queryStrategy": "UseIPv4"
   }
 }
