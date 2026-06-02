@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_RAW="https://raw.githubusercontent.com/changecoin938/tunnel-me/main"
+REPO_SLUG="changecoin938/tunnel-me"
+REPO_REF="main"
+REPO_RAW="https://raw.githubusercontent.com/${REPO_SLUG}/${REPO_REF}"
+# اگر ریپو خصوصی است، GH_TOKEN را تنظیم کنید تا فایل‌ها با احراز هویت دانلود شوند.
+GH_TOKEN="${GH_TOKEN:-}"
 WORKDIR="/opt/spoof-tunnel"
 STATE_DIR="$WORKDIR/state"
 XRAY_BIN="/usr/local/bin/xray"
@@ -22,12 +26,27 @@ die(){ err "$*"; exit 1; }
 
 mkdir -p "$WORKDIR" "$STATE_DIR" "$WORKDIR/lib" "$WORKDIR/templates"
 
+# دانلود یک مسیرِ نسبت‌به‌ریپو. اگر GH_TOKEN ست باشد از API خصوصی استفاده می‌کند،
+# وگرنه از raw عمومی.  $1=مسیر داخل ریپو (مثلا lib/deps.sh)  $2=فایل خروجی
+gh_fetch(){
+  local path="$1" out="$2"
+  if [[ -n "$GH_TOKEN" ]]; then
+    curl -fsSL \
+      -H "Authorization: Bearer ${GH_TOKEN}" \
+      -H "Accept: application/vnd.github.raw" \
+      "https://api.github.com/repos/${REPO_SLUG}/contents/${path}?ref=${REPO_REF}" \
+      -o "$out"
+  else
+    curl -fsSL "$REPO_RAW/${path}" -o "$out"
+  fi
+}
+
 fetch_lib(){
   local f="$1"
   if [[ -f "$(dirname "$0")/lib/$f" ]]; then
     cp "$(dirname "$0")/lib/$f" "$WORKDIR/lib/$f"
   else
-    curl -fsSL "$REPO_RAW/lib/$f" -o "$WORKDIR/lib/$f" || die "دانلود $f ناموفق بود"
+    gh_fetch "lib/$f" "$WORKDIR/lib/$f" || die "دانلود $f ناموفق بود"
   fi
   # shellcheck disable=SC1090
   source "$WORKDIR/lib/$f"
@@ -38,7 +57,7 @@ fetch_tpl(){
   if [[ -f "$(dirname "$0")/templates/$f" ]]; then
     cp "$(dirname "$0")/templates/$f" "$WORKDIR/templates/$f"
   else
-    curl -fsSL "$REPO_RAW/templates/$f" -o "$WORKDIR/templates/$f" || die "دانلود قالب $f ناموفق بود"
+    gh_fetch "templates/$f" "$WORKDIR/templates/$f" || die "دانلود قالب $f ناموفق بود"
   fi
 }
 

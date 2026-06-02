@@ -10,17 +10,26 @@
 - **RELAY (سرور ایران):** فقط یک فورواردر سبک. پورت‌های کاربر را به دامین CDN می‌رساند.
 - کاربر به **IP اروان** وصل می‌شود (سریع، IP ایرانی تمیز)؛ ترافیک از CDN به x-ui می‌رسد.
 
-## نصب
+## نصب (ریپوی خصوصی، با توکن)
 
-روی هر سرور:
+این ریپو خصوصی است؛ نصب با توکن گیت‌هاب انجام می‌شود. روی هر سرور (Ubuntu، با root):
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/changecoin938/tunnel-me/main/install.sh)
+sudo -i
+GH_TOKEN=github_pat_xxx bash -c 'set -e; d=$(mktemp -d); \
+  curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+  https://api.github.com/repos/changecoin938/tunnel-me/tarball/main \
+  | tar -xz -C "$d" --strip-components=1; \
+  GH_TOKEN="$GH_TOKEN" bash "$d/install.sh"'
 ```
+
+`github_pat_xxx` را با توکن خودت جایگزین کن. توکن باید روی این ریپو دسترسی **Contents: Read** داشته باشد (همان توکنی که برای push استفاده شد کافی است).
 
 سپس از منو:
 - روی هتزنر → گزینه‌ی **EXIT**
 - روی اروان → گزینه‌ی **RELAY**
+
+> فقط برای استفاده‌ی شخصی روی سرورهای خودت. برای اینکه توکن در `~/.bash_history` نماند، بهتر است در یک جلسه‌ی root موقت اجرا کنی.
 
 ## پیش‌نیاز
 
