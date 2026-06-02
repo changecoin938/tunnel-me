@@ -50,11 +50,16 @@ UNIT
 }
 
 start_service(){
-  systemctl restart ${XRAY_SVC}
+  systemctl restart ${XRAY_SVC} 2>/dev/null || true
   sleep 1
   if systemctl is-active --quiet ${XRAY_SVC}; then
     ok "سرویس فعال است"
   else
-    err "سرویس فعال نشد — برای جزئیات: journalctl -u ${XRAY_SVC} -n50"
+    err "سرویس فعال نشد. آخرین خطاها:"
+    journalctl -u ${XRAY_SVC} -n15 --no-pager 2>/dev/null | sed 's/^/    /' || true
+    if journalctl -u ${XRAY_SVC} -n30 --no-pager 2>/dev/null | grep -qi "address already in use"; then
+      warn "علت: یکی از پورت‌ها هنوز اشغال است. از منوی مدیریت → «بازسازی کانفیگ» را بزنید تا پورت آزاد شود."
+    fi
+    warn "برای لاگ کامل: journalctl -u ${XRAY_SVC} -n50 --no-pager"
   fi
 }

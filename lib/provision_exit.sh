@@ -8,22 +8,18 @@ provision_exit(){
   install_deps
   load_state
 
-  read -rp "  دامین کامل برای این سرور (مثلا s1.example.com): " CDN_DOMAIN
-  [[ -n "$CDN_DOMAIN" ]] || die "دامین الزامی است"
+  ask_required "دامین کامل برای این سرور (مثلا s1.example.com)" CDN_DOMAIN "${CDN_DOMAIN:-}"
 
   local pub_ip
   pub_ip="$(curl -fsSL https://api.ipify.org 2>/dev/null || echo "")"
-  read -rp "  IP عمومی این سرور [${pub_ip}]: " IP_IN
-  pub_ip="${IP_IN:-$pub_ip}"
-  [[ -n "$pub_ip" ]] || die "IP لازم است"
+  ask_required "IP عمومی این سرور" pub_ip "${pub_ip:-}"
 
   save_state CDN_DOMAIN "$CDN_DOMAIN"
   save_state EXIT_IP "$pub_ip"
   save_state ROLE "exit"
 
   echo
-  read -rp "  می‌خواهید ساب‌دامین به‌صورت خودکار در Cloudflare ساخته شود؟ [y/N]: " do_cf
-  if [[ "${do_cf,,}" == "y" ]]; then
+  if ask_yesno "می‌خواهید ساب‌دامین به‌صورت خودکار در Cloudflare ساخته شود؟" "N"; then
     cf_setup_record "$CDN_DOMAIN" "$pub_ip"
   else
     warn "تنظیم دستی: یک رکورد A با نام ${CDN_DOMAIN} به ${pub_ip} بسازید و حالت Proxy (ابر نارنجی) را روشن کنید."

@@ -22,6 +22,31 @@ warn(){ echo -e "${C_YLW}[!]${C_RESET} $*"; }
 err(){ echo -e "${C_RED}[X]${C_RESET} $*" >&2; }
 die(){ err "$*"; exit 1; }
 
+# پرسش الزامی: تا وقتی مقدار خالی است دوباره می‌پرسد (به‌جای خروج از اسکریپت).
+#   ask_required "متن سؤال" VARNAME ["پیش‌فرض"]
+ask_required(){
+  local prompt="$1" __var="$2" def="${3:-}" val=""
+  while :; do
+    if [[ -n "$def" ]]; then
+      read -rp "  ${prompt} [${def}]: " val
+      val="${val:-$def}"
+    else
+      read -rp "  ${prompt}: " val
+    fi
+    [[ -n "$val" ]] && break
+    warn "این فیلد الزامی است؛ دوباره وارد کنید (Ctrl+C برای لغو)."
+  done
+  printf -v "$__var" '%s' "$val"
+}
+
+# پرسش بله/خیر، پیش‌فرض با حرف بزرگ مشخص می‌شود.  ask_yesno "سؤال" "N"
+ask_yesno(){
+  local prompt="$1" def="${2:-N}" ans=""
+  read -rp "  ${prompt} [$([[ "${def^^}" == "Y" ]] && echo 'Y/n' || echo 'y/N')]: " ans
+  ans="${ans:-$def}"
+  [[ "${ans,,}" == "y" ]]
+}
+
 [[ $EUID -eq 0 ]] || die "این اسکریپت باید با root اجرا شود (sudo -i)"
 
 mkdir -p "$WORKDIR" "$STATE_DIR" "$WORKDIR/lib" "$WORKDIR/templates"

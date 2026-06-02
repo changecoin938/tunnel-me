@@ -10,14 +10,12 @@ provision_relay(){
 
   echo
   echo -e "  ${C_DIM}دامین CDN همان دامینی است که در Cloudflare برای x-ui (روی سرور خارج) proxy کرده‌اید.${C_RESET}"
-  read -rp "  دامین CDN (مثلا s1.example.com): " CDN_DOMAIN
-  [[ -n "$CDN_DOMAIN" ]] || die "دامین CDN الزامی است"
+  ask_required "دامین CDN (مثلا s1.example.com)" CDN_DOMAIN "${CDN_DOMAIN:-}"
 
-  read -rp "  پورت‌های x-ui که باید فوروارد شوند (با کاما، مثلا 443,8443,2056): " XUI_PORTS
-  [[ -n "$XUI_PORTS" ]] || die "حداقل یک پورت لازم است"
+  ask_required "پورت‌های x-ui که باید فوروارد شوند (با کاما، مثلا 443,8443,2056)" XUI_PORTS "${XUI_PORTS:-}"
 
-  read -rp "  پورت اتصال به CDN [443]: " CDN_PORT
-  CDN_PORT="${CDN_PORT:-443}"
+  echo -e "  ${C_DIM}پورت اتصال به CDN = پورتی که رله روی آن به Cloudflare وصل می‌شود (HTTPS معمولاً 443).${C_RESET}"
+  ask_required "پورت اتصال به CDN" CDN_PORT "${CDN_PORT:-443}"
 
   save_state CDN_DOMAIN "$CDN_DOMAIN"
   save_state XUI_PORTS "$XUI_PORTS"
@@ -25,6 +23,9 @@ provision_relay(){
   save_state ROLE "relay"
 
   build_relay_config "$CDN_DOMAIN" "$XUI_PORTS" "$CDN_PORT"
+  # قبل از استارت: سرویس خودمان را متوقف و پورت‌های اشغال‌شده توسط بقیه را آزاد می‌کنیم.
+  systemctl stop "$XRAY_SVC" 2>/dev/null || true
+  free_busy_ports "$XUI_PORTS"
   install_service
   start_service
 
@@ -64,4 +65,42 @@ build_relay_config(){
   "$XRAY_BIN" -test -config "$XRAY_CONF" >/dev/null 2>&1 \
     || die "کانفیگ تولیدشده نامعتبر است"
   ok "کانفیگ RELAY ساخته و اعتبارسنجی شد"
+}
+
+# پورت‌های اشغال‌شده توسط پروسه‌های دیگر را پیدا و با تأیید کاربر آزاد می‌کند.
+free_busy_ports(){
+  local ports="$1"
+  command -v ss >/dev/null 2>&1 || apt-get install -y iproute2 >/dev/null 2>&1 || true
+  IFS=',' read -ra PARR <<< "$ports"
+  for p in "${PARR[@]}"; do
+    p="$(echo "$p" | tr -d '[:space:]')"
+    [[ "$p" =~ ^[0-9]+$ ]] || continue
+
+    local lines
+    lines="$(ss -ltnp 2>/dev/null | awk -v port="$p" 'NR>1 && $4 ~ (":" port "$")')"
+    [[ -n "$lines" ]] || continue
+
+    warn "پورت ${p} از قبل اشغال است:"
+    echo "$lines" | sed 's/^/      /'
+
+    local pids pid pname
+    pids="$(echo "$lines" | grep -oP 'pid=\K[0-9]+' | sort -u)"
+    if [[ -z "$pids" ]]; then
+      warn "پروسه‌ی پورت ${p} تشخیص داده نشد؛ دستی بررسی کنید."
+      continue
+    fi
+    for pid in $pids; do
+      pname="$(ps -p "$pid" -o comm= 2>/dev/null || echo '?')"
+      echo -e "      → PID ${pid} (${pname:-?})"
+    done
+
+    if ask_yesno "پورت ${p} آزاد شود؟ (پروسه‌های بالا متوقف می‌شوند)" "N"; then
+      for pid in $pids; do kill "$pid" 2>/dev/null || true; done
+      sleep 1
+      for pid in $pids; do kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true; done
+      ok "پورت ${p} آزاد شد"
+    else
+      warn "پورت ${p} آزاد نشد؛ ممکن است سرویس بالا نیاید."
+    fi
+  done
 }
