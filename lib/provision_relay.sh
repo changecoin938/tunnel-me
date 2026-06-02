@@ -17,12 +17,19 @@ provision_relay(){
   echo -e "  ${C_DIM}پورت اتصال به CDN = پورتی که رله روی آن به Cloudflare وصل می‌شود (HTTPS معمولاً 443).${C_RESET}"
   ask_required "پورت اتصال به CDN" CDN_PORT "${CDN_PORT:-443}"
 
+  echo
+  echo -e "  ${C_DIM}اختیاری: اگر یک «IP تمیز» Cloudflare داری که از ایران پایدارتر است، وارد کن."
+  echo -e "  رله مستقیم به همان IP وصل می‌شود (SNI همان دامین می‌ماند). برای استفاده از DNS، خالی بگذار.${C_RESET}"
+  read -rp "  IP تمیز Cloudflare (اختیاری) [${CDN_IP:-}]: " _cdnip
+  CDN_IP="${_cdnip:-${CDN_IP:-}}"
+
   save_state CDN_DOMAIN "$CDN_DOMAIN"
   save_state XUI_PORTS "$XUI_PORTS"
   save_state CDN_PORT "$CDN_PORT"
+  save_state CDN_IP "$CDN_IP"
   save_state ROLE "relay"
 
-  build_relay_config "$CDN_DOMAIN" "$XUI_PORTS" "$CDN_PORT"
+  build_relay_config "$CDN_DOMAIN" "$XUI_PORTS" "$CDN_PORT" "$CDN_IP"
   # قبل از استارت: سرویس خودمان را متوقف و پورت‌های اشغال‌شده توسط بقیه را آزاد می‌کنیم.
   systemctl stop "$XRAY_SVC" 2>/dev/null || true
   free_busy_ports "$XUI_PORTS"
@@ -39,14 +46,19 @@ provision_relay(){
 }
 
 build_relay_config(){
-  local domain="$1" ports="$2" cdn_port="$3"
+  local domain="$1" ports="$2" cdn_port="$3" cdn_ip="${4:-}"
+  # اگر IP تمیز داده شده باشد، رله مستقیم به آن وصل می‌شود؛ وگرنه دامین را resolve می‌کند.
+  local target="${cdn_ip:-$domain}"
+  if [[ -n "$cdn_ip" ]]; then
+    ok "رله به IP تمیز ${cdn_ip} وصل می‌شود (SNI: ${domain})"
+  fi
   local inbounds="[]"
   IFS=',' read -ra PARR <<< "$ports"
   for p in "${PARR[@]}"; do
     p="$(echo "$p" | tr -d '[:space:]')"
     [[ "$p" =~ ^[0-9]+$ ]] || continue
     local ib
-    ib=$(jq -n --argjson port "$p" --arg addr "$domain" --argjson dport "$cdn_port" '{
+    ib=$(jq -n --argjson port "$p" --arg addr "$target" --argjson dport "$cdn_port" '{
       listen: "0.0.0.0",
       port: $port,
       protocol: "dokodemo-door",
