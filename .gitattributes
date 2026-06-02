@@ -1,0 +1,4 @@
+# Shell scripts and config templates run on Linux servers — force LF.
+*.sh    text eol=lf
+*.tpl   text eol=lf
+*.md    text eol=lf
